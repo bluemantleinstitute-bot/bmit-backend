@@ -1,0 +1,32 @@
+{
+  "name": "bmit-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BMIT Certificate Verification System — REST API backend (Express 5 + MongoDB)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node scripts/dev-memory.js",
+    "dev:mongo": "nodemon server.js",
+    "seed": "node scripts/seed.js",
+    "dev-memory": "node scripts/dev-memory.js",
+    "hash-password": "node scripts/hash-password.js",
+    "test": "node tests/api.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.0.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^9.3.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.14"
+  }
+}
