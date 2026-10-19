@@ -4,9 +4,10 @@ const dns = require('dns');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Robust DNS resolution for cloud SRV lookups on local Windows dev.
-// Skipped in production (Render/Linux): the platform resolver handles SRV fine.
-if (process.env.NODE_ENV !== 'production') {
+// Robust DNS resolution for cloud SRV lookups (Windows/local networks that
+// refuse SRV queries via the system resolver). Skipped on Render, which sets
+// RENDER=true and whose platform resolver handles Atlas SRV correctly.
+if (process.env.RENDER !== 'true') {
   try {
     dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
   } catch {
@@ -104,7 +105,8 @@ async function startServer(port = process.env.PORT || 5000) {
 
 /**
  * Graceful shutdown for Render (SIGTERM on deploy/restart): stop accepting new
- * connections, let in-flight requests finish, close MongoDB, then exit.
+ * connections, drop idle keep-alive sockets, let in-flight requests finish,
+ * close MongoDB, then exit. 10s failsafe forces exit if drain hangs.
  */
 function attachGracefulShutdown(server) {
   let closing = false;
@@ -119,6 +121,9 @@ function attachGracefulShutdown(server) {
         .catch(() => {})
         .finally(() => process.exit(0));
     });
+    if (typeof server.closeIdleConnections === 'function') {
+      server.closeIdleConnections();
+    }
     setTimeout(() => process.exit(1), 10_000).unref();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -140,4 +145,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createApp, startServer };
+module.exports = { createApp, startServer, attachGracefulShutdown };
