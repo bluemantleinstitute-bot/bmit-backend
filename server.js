@@ -4,11 +4,14 @@ const dns = require('dns');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Robust DNS resolution for cloud SRV lookups on local Windows dev
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch {
-  /* keep system defaults */
+// Robust DNS resolution for cloud SRV lookups on local Windows dev.
+// Skipped in production (Render/Linux): the platform resolver handles SRV fine.
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  } catch {
+    /* keep system defaults */
+  }
 }
 
 dotenv.config({ path: path.join(__dirname, '.env'), quiet: true });
@@ -99,10 +102,34 @@ async function startServer(port = process.env.PORT || 5000) {
   return { app, server };
 }
 
+/**
+ * Graceful shutdown for Render (SIGTERM on deploy/restart): stop accepting new
+ * connections, let in-flight requests finish, close MongoDB, then exit.
+ */
+function attachGracefulShutdown(server) {
+  let closing = false;
+  const shutdown = (signal) => {
+    if (closing) return;
+    closing = true;
+    // eslint-disable-next-line no-console
+    console.log(`[bmit-backend] ${signal} received — draining connections`);
+    server.close(() => {
+      mongoose.connection
+        .close()
+        .catch(() => {})
+        .finally(() => process.exit(0));
+    });
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
 if (require.main === module) {
   startServer()
     .then(({ server }) => {
       const address = server.address();
+      attachGracefulShutdown(server);
       // eslint-disable-next-line no-console
       console.log(`[bmit-backend] listening on port ${address.port}`);
     })
